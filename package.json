@@ -5,7 +5,7 @@
   "main": "src/server.js",
   "type": "module",
  "scripts": {
-    "build": "node node_modules/prisma/dist/bin.js generate",
+    "build": "node node_modules/prisma/build/index.js generate",
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "db:migrate": "prisma migrate dev",
