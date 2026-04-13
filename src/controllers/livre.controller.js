@@ -1,4 +1,5 @@
 // src/controllers/livre.controller.js
+import { cloudinaryService } from '../services/cloudinary.service.js';
 import { livreService } from '../services/livre.service.js';
 import { success, created } from '../utils/response.js';
 
@@ -17,7 +18,8 @@ export const livreController = {
 
   create: async (req, res, next) => {
     try {
-      const couvertureUrl = req.file?.path ?? null;
+      const couvertureUpload = await cloudinaryService.uploadImage(req.file, 'livres');
+      const couvertureUrl = couvertureUpload?.url ?? null;
       const livre = await livreService.create(req.body, couvertureUrl);
       return created(res, livre, 'Livre enregistré avec succès');
     } catch (err) { next(err); }
@@ -37,7 +39,8 @@ export const livreController = {
         err.statusCode = 400;
         throw err;
       }
-      const livre = await livreService.updateCouverture(req.params.id, req.file.path);
+      const couvertureUpload = await cloudinaryService.uploadImage(req.file, 'livres');
+      const livre = await livreService.updateCouverture(req.params.id, couvertureUpload.url);
       return success(res, livre, 'Couverture mise à jour avec succès');
     } catch (err) { next(err); }
   },

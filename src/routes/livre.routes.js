@@ -2,12 +2,11 @@
 import { Router } from 'express';
 import { livreController } from '../controllers/livre.controller.js';
 import validate from '../middlewares/validate.js';
+import { uploadSingleImage } from '../middlewares/upload.js';
 import { createLivreSchema, updateLivreSchema } from '../validations/livre.schema.js';
 import { idParamSchema } from '../validations/common.schema.js';
-import { makeUpload } from '../config/cloudinary.js';
 
 const router = Router();
-const upload = makeUpload('livres');
 
 /**
  * @swagger
@@ -88,7 +87,7 @@ router.get('/:id', validate(idParamSchema, 'params'), livreController.getById);
  *       409:
  *         description: ISBN déjà existant
  */
-router.post('/', upload.single('couverture'), validate(createLivreSchema), livreController.create);
+router.post('/', uploadSingleImage('couverture'), validate(createLivreSchema), livreController.create);
 
 /**
  * @swagger
@@ -150,7 +149,7 @@ router.patch('/:id', validate(idParamSchema, 'params'), validate(updateLivreSche
  *       404:
  *         description: Livre introuvable
  */
-router.patch('/:id/couverture', validate(idParamSchema, 'params'), upload.single('couverture'), livreController.updateCouverture);
+router.patch('/:id/couverture', validate(idParamSchema, 'params'), uploadSingleImage('couverture'), livreController.updateCouverture);
 
 /**
  * @swagger

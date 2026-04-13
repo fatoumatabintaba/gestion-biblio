@@ -2,12 +2,11 @@
 import { Router } from 'express';
 import { adherentController } from '../controllers/adherent.controller.js';
 import validate from '../middlewares/validate.js';
+import { uploadSingleImage } from '../middlewares/upload.js';
 import { createAdherentSchema, updateAdherentSchema } from '../validations/adherent.schema.js';
 import { idParamSchema } from '../validations/common.schema.js';
-import { makeUpload } from '../config/cloudinary.js';
 
 const router = Router();
-const upload = makeUpload('adherents');
 
 /**
  * @swagger
@@ -106,7 +105,7 @@ router.get('/:id/emprunts', validate(idParamSchema, 'params'), adherentControlle
  *       409:
  *         description: Email déjà utilisé
  */
-router.post('/', upload.single('photo'), validate(createAdherentSchema), adherentController.create);
+router.post('/', uploadSingleImage('photo'), validate(createAdherentSchema), adherentController.create);
 
 /**
  * @swagger
@@ -168,7 +167,7 @@ router.patch('/:id', validate(idParamSchema, 'params'), validate(updateAdherentS
  *       404:
  *         description: Adhérent introuvable
  */
-router.patch('/:id/photo', validate(idParamSchema, 'params'), upload.single('photo'), adherentController.updatePhoto);
+router.patch('/:id/photo', validate(idParamSchema, 'params'), uploadSingleImage('photo'), adherentController.updatePhoto);
 
 /**
  * @swagger

@@ -1,5 +1,6 @@
 // src/controllers/adherent.controller.js
 import { adherentService } from '../services/adherent.service.js';
+import { cloudinaryService } from '../services/cloudinary.service.js';
 import { success, created } from '../utils/response.js';
 
 export const adherentController = {
@@ -17,7 +18,8 @@ export const adherentController = {
 
   create: async (req, res, next) => {
     try {
-      const photoUrl = req.file?.path ?? null;
+      const photoUpload = await cloudinaryService.uploadImage(req.file, 'adherents');
+      const photoUrl = photoUpload?.url ?? null;
       const adherent = await adherentService.create(req.body, photoUrl);
       return created(res, adherent, 'Adhérent inscrit avec succès');
     } catch (err) { next(err); }
@@ -37,7 +39,8 @@ export const adherentController = {
         err.statusCode = 400;
         throw err;
       }
-      const adherent = await adherentService.updatePhoto(req.params.id, req.file.path);
+      const photoUpload = await cloudinaryService.uploadImage(req.file, 'adherents');
+      const adherent = await adherentService.updatePhoto(req.params.id, photoUpload.url);
       return success(res, adherent, 'Photo mise à jour avec succès');
     } catch (err) { next(err); }
   },
