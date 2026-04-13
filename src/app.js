@@ -3,6 +3,7 @@ import express from 'express';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 
+
 import { config } from './config/env.js';
 import router from './routes/index.js';
 import errorHandler from './middlewares/errorHandler.js';
@@ -29,7 +30,8 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: `${config.publicBaseUrl}/api`,
+        url: `${config.publicBaseUrl || 'http://localhost:3000'}/api`,
+
         description: config.nodeEnv === 'production' ? 'Serveur de production' : 'Serveur de développement',
       },
     ],

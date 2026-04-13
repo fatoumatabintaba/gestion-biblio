@@ -5,7 +5,7 @@ import { config } from './config/env.js';
 import prisma from './config/db.js';
 
 const PORT = config.port;
-const HOST = config.host;
+const HOST = config.host || 'localhost'; // ✅ FIX IMPORTANT
 
 const start = async () => {
   try {
@@ -15,6 +15,7 @@ const start = async () => {
 
     app.listen(PORT, HOST, () => {
       const displayHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
+
       console.log(`🚀  Serveur démarré sur http://${displayHost}:${PORT}`);
       console.log(`📚  Bibliothèque TECH 221 — Groupe 6 : Bamba · Fanta · Lamotte`);
       console.log(`📖  Documentation Swagger : http://${displayHost}:${PORT}/api-docs`);

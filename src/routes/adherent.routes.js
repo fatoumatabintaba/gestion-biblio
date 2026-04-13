@@ -2,11 +2,12 @@
 import { Router } from 'express';
 import { adherentController } from '../controllers/adherent.controller.js';
 import validate from '../middlewares/validate.js';
-import { uploadSingleImage } from '../middlewares/upload.js';
 import { createAdherentSchema, updateAdherentSchema } from '../validations/adherent.schema.js';
 import { idParamSchema } from '../validations/common.schema.js';
+import { makeUpload } from '../config/cloudinary.js';
 
 const router = Router();
+const upload = makeUpload('adherents');
 
 /**
  * @swagger
@@ -51,7 +52,7 @@ router.get('/:id', validate(idParamSchema, 'params'), adherentController.getById
  * @swagger
  * /adherents/{id}/emprunts:
  *   get:
- *     summary: Lister tous les emprunts d'un adhérent
+ *     summary: Lister les emprunts d'un adhérent
  *     tags: [Adhérents]
  *     parameters:
  *       - in: path
@@ -61,7 +62,7 @@ router.get('/:id', validate(idParamSchema, 'params'), adherentController.getById
  *           type: integer
  *     responses:
  *       200:
- *         description: Emprunts de l'adhérent récupérés
+ *         description: Emprunts récupérés
  *       404:
  *         description: Adhérent introuvable
  */
@@ -71,7 +72,7 @@ router.get('/:id/emprunts', validate(idParamSchema, 'params'), adherentControlle
  * @swagger
  * /adherents:
  *   post:
- *     summary: Inscrire un nouvel adhérent
+ *     summary: Inscrire un nouvel adhérent (photo optionnelle)
  *     tags: [Adhérents]
  *     requestBody:
  *       required: true
@@ -83,39 +84,63 @@ router.get('/:id/emprunts', validate(idParamSchema, 'params'), adherentControlle
  *             properties:
  *               prenom:
  *                 type: string
- *                 example: Aminata
  *               nom:
  *                 type: string
- *                 example: Diallo
  *               email:
  *                 type: string
  *                 format: email
- *                 example: aminata.diallo@example.com
  *               telephone:
  *                 type: string
- *                 example: +221 77 000 00 00
  *               dateInscription:
  *                 type: string
  *                 format: date
- *                 example: 2024-01-15
  *               photo:
  *                 type: string
  *                 format: binary
+ *                 description: JPEG ou PNG, max 2 Mo
  *     responses:
  *       201:
- *         description: Adhérent inscrit avec succès
+ *         description: Adhérent inscrit — matricule auto-généré
  *       400:
  *         description: Données invalides
  *       409:
  *         description: Email déjà utilisé
  */
-router.post('/', uploadSingleImage('photo'), validate(createAdherentSchema), adherentController.create);
+router.post('/', upload.single('photo'), validate(createAdherentSchema), adherentController.create);
 
 /**
  * @swagger
  * /adherents/{id}:
  *   patch:
- *     summary: Mettre à jour un adhérent
+ *     summary: Mettre à jour un adhérent (champs texte)
+ *     tags: [Adhérents]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateAdherent'
+ *     responses:
+ *       200:
+ *         description: Adhérent mis à jour
+ *       404:
+ *         description: Adhérent introuvable
+ *       409:
+ *         description: Email déjà utilisé
+ */
+router.patch('/:id', validate(idParamSchema, 'params'), validate(updateAdherentSchema), adherentController.update);
+
+/**
+ * @swagger
+ * /adherents/{id}/photo:
+ *   patch:
+ *     summary: Mettre à jour la photo d'un adhérent
  *     tags: [Adhérents]
  *     parameters:
  *       - in: path
@@ -129,43 +154,27 @@ router.post('/', uploadSingleImage('photo'), validate(createAdherentSchema), adh
  *         multipart/form-data:
  *           schema:
  *             type: object
+ *             required: [photo]
  *             properties:
- *               prenom:
- *                 type: string
- *               nom:
- *                 type: string
- *               email:
- *                 type: string
- *                 format: email
- *               telephone:
- *                 type: string
- *               dateInscription:
- *                 type: string
- *                 format: date
  *               photo:
  *                 type: string
  *                 format: binary
+ *                 description: JPEG ou PNG, max 2 Mo
  *     responses:
  *       200:
- *         description: Adhérent mis à jour
+ *         description: Photo mise à jour
+ *       400:
+ *         description: Fichier manquant ou invalide
  *       404:
  *         description: Adhérent introuvable
- *       409:
- *         description: Email déjà utilisé
  */
-router.patch(
-  '/:id',
-  validate(idParamSchema, 'params'),
-  uploadSingleImage('photo'),
-  validate(updateAdherentSchema),
-  adherentController.update
-);
+router.patch('/:id/photo', validate(idParamSchema, 'params'), upload.single('photo'), adherentController.updatePhoto);
 
 /**
  * @swagger
  * /adherents/{id}:
  *   delete:
- *     summary: Supprimer un adhérent
+ *     summary: Supprimer un adhérent (photo Cloudinary supprimée aussi)
  *     tags: [Adhérents]
  *     parameters:
  *       - in: path
@@ -175,9 +184,9 @@ router.patch(
  *           type: integer
  *     responses:
  *       200:
- *         description: Adhérent supprimé avec succès
+ *         description: Adhérent supprimé
  *       403:
- *         description: Suppression interdite — emprunts EN_COURS
+ *         description: Emprunts EN_COURS — suppression interdite
  *       404:
  *         description: Adhérent introuvable
  */

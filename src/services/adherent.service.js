@@ -1,15 +1,20 @@
 // src/services/adherent.service.js
 import { adherentRepo } from '../repositories/adherent.repo.js';
-import { cloudinaryService } from './cloudinary.service.js';
-import { buildAdherentMatricule } from '../utils/matricule.js';
+import { deleteCloudinaryImage } from '../config/cloudinary.js';
 
-const isMatriculeUniqueConflict = (error) =>
-  error?.code === 'P2002' && Array.isArray(error.meta?.target) && error.meta.target.includes('matricule');
+const genererMatricule = async () => {
+  const annee = new Date().getFullYear();
+  const dernier = await adherentRepo.findLastMatricule();
+  let seq = 1;
+  if (dernier?.matricule) {
+    const num = parseInt(dernier.matricule.split('-')[2], 10);
+    if (!isNaN(num)) seq = num + 1;
+  }
+  return `ADH-${annee}-${String(seq).padStart(4, '0')}`;
+};
 
 export const adherentService = {
-  getAll: async () => {
-    return adherentRepo.findAll();
-  },
+  getAll: async () => adherentRepo.findAll(),
 
   getById: async (id) => {
     const adherent = await adherentRepo.findById(id);
@@ -21,58 +26,29 @@ export const adherentService = {
     return adherent;
   },
 
-  create: async (data, file) => {
-    let uploadedPhoto = null;
-
-    // Vérifier unicité de l'email
+  create: async (data, photoUrl = null) => {
     const existing = await adherentRepo.findByEmail(data.email);
     if (existing) {
       const err = new Error(`Un adhérent avec l'email "${data.email}" existe déjà`);
       err.statusCode = 409;
       throw err;
     }
-
-    try {
-      uploadedPhoto = await cloudinaryService.uploadImage(file, 'bibliotheque/adherents');
-      const currentYear = new Date().getFullYear();
-
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        const lastMatricule = await adherentRepo.findLastMatriculeForYear(currentYear);
-        const matricule = buildAdherentMatricule(lastMatricule?.matricule, currentYear);
-
-        try {
-          return await adherentRepo.create({
-            prenom: data.prenom,
-            nom: data.nom,
-            email: data.email,
-            telephone: data.telephone,
-            dateInscription: new Date(data.dateInscription),
-            matricule,
-            photo: uploadedPhoto?.url || null,
-            photoPublicId: uploadedPhoto?.publicId || null,
-          });
-        } catch (err) {
-          if (!isMatriculeUniqueConflict(err) || attempt === 2) {
-            throw err;
-          }
-        }
-      }
-    } catch (err) {
-      if (uploadedPhoto?.publicId) {
-        await cloudinaryService.deleteImage(uploadedPhoto.publicId).catch(() => null);
-      }
-      throw err;
-    }
+    const matricule = await genererMatricule();
+    return adherentRepo.create({
+      ...data,
+      matricule,
+      photo: photoUrl,
+      dateInscription: new Date(data.dateInscription),
+    });
   },
 
-  update: async (id, data, file) => {
-    const adherent = await adherentRepo.findByIdInternal(id);
+  update: async (id, data) => {
+    const adherent = await adherentRepo.findById(id);
     if (!adherent) {
       const err = new Error('Adhérent introuvable');
       err.statusCode = 404;
       throw err;
     }
-    // Si email change, vérifier unicité
     if (data.email && data.email !== adherent.email) {
       const existing = await adherentRepo.findByEmail(data.email);
       if (existing) {
@@ -81,43 +57,32 @@ export const adherentService = {
         throw err;
       }
     }
-    const updateData = { ...data };
-    if (data.dateInscription) {
-      updateData.dateInscription = new Date(data.dateInscription);
+    // matricule non modifiable — on l'exclut même s'il est envoyé
+    const { matricule, photo, ...updateData } = data;
+    if (updateData.dateInscription) {
+      updateData.dateInscription = new Date(updateData.dateInscription);
     }
-
-    let uploadedPhoto = null;
-
-    try {
-      if (file) {
-        uploadedPhoto = await cloudinaryService.uploadImage(file, 'bibliotheque/adherents');
-        updateData.photo = uploadedPhoto.url;
-        updateData.photoPublicId = uploadedPhoto.publicId;
-      }
-
-      const updatedAdherent = await adherentRepo.update(id, updateData);
-
-      if (uploadedPhoto?.publicId && adherent.photoPublicId) {
-        await cloudinaryService.deleteImage(adherent.photoPublicId).catch(() => null);
-      }
-
-      return updatedAdherent;
-    } catch (err) {
-      if (uploadedPhoto?.publicId) {
-        await cloudinaryService.deleteImage(uploadedPhoto.publicId).catch(() => null);
-      }
-      throw err;
-    }
+    return adherentRepo.update(id, updateData);
   },
 
-  delete: async (id) => {
-    const adherent = await adherentRepo.findByIdInternal(id);
+  updatePhoto: async (id, photoUrl) => {
+    const adherent = await adherentRepo.findById(id);
     if (!adherent) {
       const err = new Error('Adhérent introuvable');
       err.statusCode = 404;
       throw err;
     }
-    // Interdire suppression si emprunts EN_COURS
+    await deleteCloudinaryImage(adherent.photo);
+    return adherentRepo.update(id, { photo: photoUrl });
+  },
+
+  delete: async (id) => {
+    const adherent = await adherentRepo.findById(id);
+    if (!adherent) {
+      const err = new Error('Adhérent introuvable');
+      err.statusCode = 404;
+      throw err;
+    }
     const nbEmprunts = await adherentRepo.countEmpruntsEnCours(id);
     if (nbEmprunts > 0) {
       const err = new Error(
@@ -126,14 +91,8 @@ export const adherentService = {
       err.statusCode = 403;
       throw err;
     }
-
-    const deletedAdherent = await adherentRepo.delete(id);
-
-    if (adherent.photoPublicId) {
-      await cloudinaryService.deleteImage(adherent.photoPublicId).catch(() => null);
-    }
-
-    return deletedAdherent;
+    await deleteCloudinaryImage(adherent.photo);
+    return adherentRepo.delete(id);
   },
 
   getEmprunts: async (id) => {

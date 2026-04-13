@@ -2,11 +2,12 @@
 import { Router } from 'express';
 import { livreController } from '../controllers/livre.controller.js';
 import validate from '../middlewares/validate.js';
-import { uploadSingleImage } from '../middlewares/upload.js';
 import { createLivreSchema, updateLivreSchema } from '../validations/livre.schema.js';
 import { idParamSchema } from '../validations/common.schema.js';
+import { makeUpload } from '../config/cloudinary.js';
 
 const router = Router();
+const upload = makeUpload('livres');
 
 /**
  * @swagger
@@ -51,7 +52,7 @@ router.get('/:id', validate(idParamSchema, 'params'), livreController.getById);
  * @swagger
  * /livres:
  *   post:
- *     summary: Enregistrer un nouveau livre
+ *     summary: Enregistrer un nouveau livre (couverture optionnelle)
  *     tags: [Livres]
  *     requestBody:
  *       required: true
@@ -63,25 +64,20 @@ router.get('/:id', validate(idParamSchema, 'params'), livreController.getById);
  *             properties:
  *               titre:
  *                 type: string
- *                 example: Dune
  *               auteur:
  *                 type: string
- *                 example: Frank Herbert
  *               isbn:
  *                 type: string
- *                 example: 978-2-07-036822-8
  *               anneePublication:
  *                 type: integer
- *                 example: 1965
  *               qteDisponible:
  *                 type: integer
- *                 example: 3
  *               rayonId:
  *                 type: integer
- *                 example: 1
  *               couverture:
  *                 type: string
  *                 format: binary
+ *                 description: JPEG ou PNG, max 2 Mo
  *     responses:
  *       201:
  *         description: Livre enregistré avec succès
@@ -92,13 +88,41 @@ router.get('/:id', validate(idParamSchema, 'params'), livreController.getById);
  *       409:
  *         description: ISBN déjà existant
  */
-router.post('/', uploadSingleImage('couverture'), validate(createLivreSchema), livreController.create);
+router.post('/', upload.single('couverture'), validate(createLivreSchema), livreController.create);
 
 /**
  * @swagger
  * /livres/{id}:
  *   patch:
- *     summary: Mettre à jour un livre
+ *     summary: Mettre à jour un livre (champs texte)
+ *     tags: [Livres]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateLivre'
+ *     responses:
+ *       200:
+ *         description: Livre mis à jour
+ *       404:
+ *         description: Livre ou rayon introuvable
+ *       409:
+ *         description: ISBN déjà utilisé
+ */
+router.patch('/:id', validate(idParamSchema, 'params'), validate(updateLivreSchema), livreController.update);
+
+/**
+ * @swagger
+ * /livres/{id}/couverture:
+ *   patch:
+ *     summary: Mettre à jour la couverture d'un livre
  *     tags: [Livres]
  *     parameters:
  *       - in: path
@@ -112,43 +136,27 @@ router.post('/', uploadSingleImage('couverture'), validate(createLivreSchema), l
  *         multipart/form-data:
  *           schema:
  *             type: object
+ *             required: [couverture]
  *             properties:
- *               titre:
- *                 type: string
- *               auteur:
- *                 type: string
- *               isbn:
- *                 type: string
- *               anneePublication:
- *                 type: integer
- *               qteDisponible:
- *                 type: integer
- *               rayonId:
- *                 type: integer
  *               couverture:
  *                 type: string
  *                 format: binary
+ *                 description: JPEG ou PNG, max 2 Mo
  *     responses:
  *       200:
- *         description: Livre mis à jour
+ *         description: Couverture mise à jour
+ *       400:
+ *         description: Fichier manquant ou invalide
  *       404:
- *         description: Livre ou rayon introuvable
- *       409:
- *         description: ISBN déjà utilisé
+ *         description: Livre introuvable
  */
-router.patch(
-  '/:id',
-  validate(idParamSchema, 'params'),
-  uploadSingleImage('couverture'),
-  validate(updateLivreSchema),
-  livreController.update
-);
+router.patch('/:id/couverture', validate(idParamSchema, 'params'), upload.single('couverture'), livreController.updateCouverture);
 
 /**
  * @swagger
  * /livres/{id}:
  *   delete:
- *     summary: Supprimer un livre
+ *     summary: Supprimer un livre (couverture Cloudinary supprimée aussi)
  *     tags: [Livres]
  *     parameters:
  *       - in: path
@@ -158,9 +166,9 @@ router.patch(
  *           type: integer
  *     responses:
  *       200:
- *         description: Livre supprimé avec succès
+ *         description: Livre supprimé
  *       403:
- *         description: Suppression interdite — emprunts EN_COURS
+ *         description: Emprunts EN_COURS — suppression interdite
  *       404:
  *         description: Livre introuvable
  */

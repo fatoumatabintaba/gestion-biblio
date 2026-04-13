@@ -1,19 +1,8 @@
 // src/services/rayon.service.js
 import { rayonRepo } from '../repositories/rayon.repo.js';
 
-const normalizeSousRayon = (value) => {
-  if (typeof value !== 'string') {
-    return '';
-  }
-
-  const trimmedValue = value.trim();
-  return trimmedValue || '';
-};
-
 export const rayonService = {
-  getAll: async () => {
-    return rayonRepo.findAll();
-  },
+  getAll: async () => rayonRepo.findAll(),
 
   getById: async (id) => {
     const rayon = await rayonRepo.findById(id);
@@ -26,20 +15,16 @@ export const rayonService = {
   },
 
   create: async (data) => {
-    const payload = {
-      ...data,
-      sousRayon: normalizeSousRayon(data.sousRayon),
-    };
-
-    const existing = await rayonRepo.findByCodeAndSousRayon(payload.code, payload.sousRayon);
+    const existing = await rayonRepo.findByCodeEtSousRayon(data.code, data.sousRayon ?? null);
     if (existing) {
-      const suffix = payload.sousRayon ? ` / sous-rayon "${payload.sousRayon}"` : '';
-      const err = new Error(`Le couple code "${payload.code}"${suffix} existe déjà`);
+      const label = data.sousRayon
+        ? `Le rayon "${data.code}" / sous-rayon "${data.sousRayon}" existe déjà`
+        : `Le code rayon "${data.code}" existe déjà (sans sous-rayon)`;
+      const err = new Error(label);
       err.statusCode = 409;
       throw err;
     }
-
-    return rayonRepo.create(payload);
+    return rayonRepo.create({ ...data, sousRayon: data.sousRayon ?? null });
   },
 
   update: async (id, data) => {
@@ -49,27 +34,23 @@ export const rayonService = {
       err.statusCode = 404;
       throw err;
     }
-    const nextCode = data.code ?? rayon.code;
-    const nextSousRayon = Object.prototype.hasOwnProperty.call(data, 'sousRayon')
-      ? normalizeSousRayon(data.sousRayon)
-      : normalizeSousRayon(rayon.sousRayon);
+    const newCode = data.code ?? rayon.code;
+    const newSousRayon = Object.prototype.hasOwnProperty.call(data, 'sousRayon')
+      ? (data.sousRayon ?? null)
+      : rayon.sousRayon;
 
-    if (nextCode !== rayon.code || nextSousRayon !== normalizeSousRayon(rayon.sousRayon)) {
-      const existing = await rayonRepo.findByCodeAndSousRayon(nextCode, nextSousRayon);
+    if (newCode !== rayon.code || newSousRayon !== rayon.sousRayon) {
+      const existing = await rayonRepo.findByCodeEtSousRayon(newCode, newSousRayon);
       if (existing && existing.id !== rayon.id) {
-        const suffix = nextSousRayon ? ` / sous-rayon "${nextSousRayon}"` : '';
-        const err = new Error(`Le couple code "${nextCode}"${suffix} existe déjà`);
+        const label = newSousRayon
+          ? `Le rayon "${newCode}" / sous-rayon "${newSousRayon}" existe déjà`
+          : `Le code rayon "${newCode}" existe déjà (sans sous-rayon)`;
+        const err = new Error(label);
         err.statusCode = 409;
         throw err;
       }
     }
-
-    return rayonRepo.update(id, {
-      ...data,
-      ...(Object.prototype.hasOwnProperty.call(data, 'sousRayon')
-        ? { sousRayon: nextSousRayon }
-        : {}),
-    });
+    return rayonRepo.update(id, data);
   },
 
   delete: async (id) => {
@@ -79,11 +60,10 @@ export const rayonService = {
       err.statusCode = 404;
       throw err;
     }
-    // Interdire suppression si des livres existent dans ce rayon
     const nbLivres = await rayonRepo.countLivres(id);
     if (nbLivres > 0) {
       const err = new Error(
-        `Impossible de supprimer ce rayon : il contient ${nbLivres} livre(s). Veuillez d'abord retirer ou réaffecter les livres.`
+        `Impossible de supprimer ce rayon : il contient ${nbLivres} livre(s).`
       );
       err.statusCode = 403;
       throw err;

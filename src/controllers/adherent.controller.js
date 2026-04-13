@@ -5,55 +5,54 @@ import { success, created } from '../utils/response.js';
 export const adherentController = {
   getAll: async (req, res, next) => {
     try {
-      const adherents = await adherentService.getAll();
-      return success(res, adherents, 'Liste des adhérents récupérée avec succès');
-    } catch (err) {
-      next(err);
-    }
+      return success(res, await adherentService.getAll(), 'Liste des adhérents récupérée avec succès');
+    } catch (err) { next(err); }
   },
 
   getById: async (req, res, next) => {
     try {
-      const adherent = await adherentService.getById(req.params.id);
-      return success(res, adherent, 'Adhérent récupéré avec succès');
-    } catch (err) {
-      next(err);
-    }
+      return success(res, await adherentService.getById(req.params.id), 'Adhérent récupéré avec succès');
+    } catch (err) { next(err); }
   },
 
   create: async (req, res, next) => {
     try {
-      const adherent = await adherentService.create(req.body, req.file);
+      const photoUrl = req.file?.path ?? null;
+      const adherent = await adherentService.create(req.body, photoUrl);
       return created(res, adherent, 'Adhérent inscrit avec succès');
-    } catch (err) {
-      next(err);
-    }
+    } catch (err) { next(err); }
   },
 
   update: async (req, res, next) => {
     try {
-      const adherent = await adherentService.update(req.params.id, req.body, req.file);
+      const adherent = await adherentService.update(req.params.id, req.body);
       return success(res, adherent, 'Adhérent mis à jour avec succès');
-    } catch (err) {
-      next(err);
-    }
+    } catch (err) { next(err); }
+  },
+
+  updatePhoto: async (req, res, next) => {
+    try {
+      if (!req.file) {
+        const err = new Error('Aucun fichier image fourni');
+        err.statusCode = 400;
+        throw err;
+      }
+      const adherent = await adherentService.updatePhoto(req.params.id, req.file.path);
+      return success(res, adherent, 'Photo mise à jour avec succès');
+    } catch (err) { next(err); }
   },
 
   delete: async (req, res, next) => {
     try {
       await adherentService.delete(req.params.id);
       return success(res, null, 'Adhérent supprimé avec succès');
-    } catch (err) {
-      next(err);
-    }
+    } catch (err) { next(err); }
   },
 
   getEmprunts: async (req, res, next) => {
     try {
       const emprunts = await adherentService.getEmprunts(req.params.id);
-      return success(res, emprunts, 'Emprunts de l\'adhérent récupérés avec succès');
-    } catch (err) {
-      next(err);
-    }
+      return success(res, emprunts, "Emprunts de l'adhérent récupérés avec succès");
+    } catch (err) { next(err); }
   },
 };

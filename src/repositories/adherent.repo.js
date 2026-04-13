@@ -1,44 +1,30 @@
 // src/repositories/adherent.repo.js
 import prisma from '../config/db.js';
 
-const adherentPublicSelect = {
-  id: true,
-  matricule: true,
-  prenom: true,
-  nom: true,
-  email: true,
-  telephone: true,
-  dateInscription: true,
-  photo: true,
-  createdAt: true,
-  updatedAt: true,
-};
-
 export const adherentRepo = {
-  findAll: () => prisma.adherent.findMany({ select: adherentPublicSelect, orderBy: [{ nom: 'asc' }, { prenom: 'asc' }] }),
+  findAll: () =>
+    prisma.adherent.findMany({ orderBy: { nom: 'asc' } }),
 
-  findById: (id) => prisma.adherent.findUnique({ where: { id }, select: adherentPublicSelect }),
+  findById: (id) =>
+    prisma.adherent.findUnique({ where: { id } }),
 
-  findByIdInternal: (id) => prisma.adherent.findUnique({ where: { id } }),
+  findByEmail: (email) =>
+    prisma.adherent.findUnique({ where: { email } }),
 
-  findByEmail: (email) => prisma.adherent.findUnique({ where: { email } }),
-
-  findLastMatriculeForYear: (year) =>
+  findLastMatricule: () =>
     prisma.adherent.findFirst({
-      where: {
-        matricule: {
-          startsWith: `ADH-${year}-`,
-        },
-      },
-      orderBy: { matricule: 'desc' },
+      orderBy: { id: 'desc' },
       select: { matricule: true },
     }),
 
-  create: (data) => prisma.adherent.create({ data, select: adherentPublicSelect }),
+  create: (data) =>
+    prisma.adherent.create({ data }),
 
-  update: (id, data) => prisma.adherent.update({ where: { id }, data, select: adherentPublicSelect }),
+  update: (id, data) =>
+    prisma.adherent.update({ where: { id }, data }),
 
-  delete: (id) => prisma.adherent.delete({ where: { id } }),
+  delete: (id) =>
+    prisma.adherent.delete({ where: { id } }),
 
   countEmpruntsEnCours: (id) =>
     prisma.emprunt.count({ where: { adherentId: id, statut: 'EN_COURS' } }),
